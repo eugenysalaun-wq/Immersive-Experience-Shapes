@@ -1,0 +1,204 @@
+import { useEffect, useState } from "react"
+import { ShapeRenderer, type Settings } from "./ShapeRenderer"
+ 
+// ─── Constants ────────────────────────────────────────────────────────────────
+ 
+const SLIDER_DEFS: { key: keyof Omit<Settings, "color">; label: string; left: string; right: string }[] = [
+  { key: "deformation", label: "Energy",        left: "Calm",        right: "Energetic"   },
+  { key: "roundness",   label: "Attitude",      left: "Polite",      right: "Direct"      },
+  { key: "sharpness",   label: "Behavior",      left: "Introverted", right: "Extroverted" },
+  { key: "texture",     label: "Assertiveness", left: "Reserved",    right: "Confident"   },
+  { key: "spacing",     label: "Proximity",     left: "Connected",   right: "Separated"   },
+  { key: "size",        label: "Presence",      left: "Subtle",      right: "Noticeable"  },
+]
+ 
+const DEFAULT: Settings = {
+  roundness: 0.65, sharpness: 0.35, spacing: 0.45,
+  size: 0.60, deformation: 0.50, texture: 0.30,
+  color: "#5BA88C",
+}
+ 
+const COLOR_SPECTRUM = [
+  "#EF4444", "#F97316", "#EAB308", "#84CC16", "#22C55E",
+  "#06B6D4", "#3B82F6", "#8B5CF6", "#D946EF",
+]
+ 
+const STORAGE_KEY = "shape-studio-settings"
+ 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+ 
+function deriveColor(s: Settings): string {
+  if (s.size < 0.12) return "#1C1C1C"
+  const score = s.deformation * 0.30 + s.roundness * 0.20 + s.sharpness * 0.20
+              + s.texture * 0.15 + s.spacing * 0.10 + s.size * 0.05
+  return COLOR_SPECTRUM[Math.min(COLOR_SPECTRUM.length - 1, Math.floor(score * COLOR_SPECTRUM.length))]
+}
+ 
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return { ...DEFAULT, ...JSON.parse(raw) }
+  } catch {
+    // localStorage unavailable (e.g. private mode) — fall back to defaults
+  }
+  return DEFAULT
+}
+ 
+// ─── ShapeSlider ──────────────────────────────────────────────────────────────
+ 
+function ShapeSlider(p: { label: string; left: string; right: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: "#1c1c1c", marginBottom: 14, letterSpacing: "-0.01em" }}>
+        {p.label}
+      </div>
+      <input
+        type="range" min="0" max="1" step="0.01" value={p.value}
+        onChange={(e) => p.onChange(parseFloat(e.target.value))}
+        className="shape-slider"
+        style={{ "--progress": `${p.value * 100}%` } as React.CSSProperties}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
+        <span style={{ fontSize: 11, color: "#B4B3AE" }}>{p.left}</span>
+        <span style={{ fontSize: 11, color: "#B4B3AE" }}>{p.right}</span>
+      </div>
+    </div>
+  )
+}
+ 
+// ─── Projection view (fullscreen black, shape only) ────────────────────────────
+ 
+function ProjectionView() {
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+ 
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return
+      try {
+        setSettings({ ...DEFAULT, ...JSON.parse(e.newValue) })
+      } catch {
+        // ignore malformed payloads
+      }
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
+  }, [])
+ 
+  return (
+    <div style={{ width: "100vw", height: "100vh", background: "#000", overflow: "hidden" }}>
+      <ShapeRenderer settings={settings} background="#000000" />
+    </div>
+  )
+}
+ 
+// ─── Main view (existing UI) ───────────────────────────────────────────────────
+ 
+function MainView() {
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+  const [finished,  setFinished] = useState(false)
+  const [webglError, setWebglError] = useState(false)
+ 
+  // Every time settings change, broadcast them to any open /projection tab.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    } catch {
+      // localStorage unavailable — projection sync simply won't work in this context
+    }
+  }, [settings])
+ 
+  function update<K extends keyof Settings>(key: K, value: Settings[K]) {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+  }
+ 
+  const handleGenerateColor = () => update("color", deriveColor(settings))
+ 
+  return (
+    <div style={{ display: "flex", height: "100%", fontFamily: '"DM Sans", sans-serif', position: "relative", overflow: "hidden" }}>
+ 
+      {/* Left: 3D viewport */}
+      <div style={{ flex: 1, position: "relative", background: "#F5F4F1" }}>
+        <ShapeRenderer settings={settings} background="#F5F4F1" onWebglError={() => setWebglError(true)} />
+ 
+        {webglError && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: "#1c1c1c" }}>WebGL unavailable</div>
+            <div style={{ fontSize: 12, color: "#B4B3AE", textAlign: "center", maxWidth: 260 }}>
+              This browser context does not support WebGL.<br />Try opening the preview in a new tab.
+            </div>
+          </div>
+        )}
+ 
+        <div style={{ position: "absolute", top: 28, left: 32, fontSize: 13, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", color: "#1c1c1c", opacity: 0.5, userSelect: "none", pointerEvents: "none" }}>
+          Shape Studio
+        </div>
+        <div style={{ position: "absolute", bottom: 26, left: 32, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#B4B3AE", userSelect: "none", pointerEvents: "none" }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#B4B3AE" strokeWidth="1.2"/>
+            <path d="M4 7c0-1.66 1.34-3 3-3" stroke="#B4B3AE" strokeWidth="1.2" strokeLinecap="round"/>
+            <path d="M7 4l1.2 1.2-1.2 1.2" stroke="#B4B3AE" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Drag to rotate · Scroll to zoom
+        </div>
+      </div>
+ 
+      {/* Right: settings panel */}
+      <div style={{ width: 308, background: "#fff", borderLeft: "1px solid #ECEAE5", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+ 
+        <div style={{ padding: "30px 28px 22px", borderBottom: "1px solid #F2F1ED" }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#B4B3AE", marginBottom: 7 }}>Personality</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: "#1c1c1c", letterSpacing: "-0.03em" }}>Shape</div>
+        </div>
+ 
+        <div className="panel-scroll" style={{ flex: 1, overflowY: "auto", padding: "26px 28px 8px" }}>
+          {SLIDER_DEFS.map(({ key, label, left, right }) => (
+            <ShapeSlider key={key} label={label} left={left} right={right}
+              value={settings[key] as number}
+              onChange={(v) => update(key, v)}
+            />
+          ))}
+          {settings.color !== DEFAULT.color && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: -8 }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: settings.color, flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }} />
+              <span style={{ fontSize: 11, color: "#B4B3AE" }}>Generated color</span>
+            </div>
+          )}
+        </div>
+ 
+        <div style={{ padding: "18px 28px 32px", borderTop: "1px solid #F2F1ED", display: "flex", flexDirection: "column", gap: 11 }}>
+          <button className="btn-random" onClick={handleGenerateColor}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "1.5px solid #DDDCD8", background: "transparent", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", color: "#1c1c1c", cursor: "pointer", fontFamily: "inherit", transition: "background 0.14s" }}>
+            GENERATE COLOR
+          </button>
+          <button className="btn-finish" onClick={() => setFinished(true)}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: "#1c1c1c", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", color: "#ffffff", cursor: "pointer", fontFamily: "inherit", transition: "background 0.14s" }}>
+            FINISH
+          </button>
+        </div>
+      </div>
+ 
+      {/* Finish overlay */}
+      {finished && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(245,244,241,0.90)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: settings.color, marginBottom: 28, boxShadow: "0 8px 32px rgba(0,0,0,0.14)" }} />
+          <div style={{ fontSize: 42, fontWeight: 700, color: "#1c1c1c", letterSpacing: "-0.04em", marginBottom: 10, textAlign: "center" }}>Shape saved.</div>
+          <div style={{ fontSize: 15, color: "#9A9A95", marginBottom: 36 }}>Your creation is ready for the next step.</div>
+          <button onClick={() => setFinished(false)}
+            style={{ padding: "13px 36px", borderRadius: 12, border: "1.5px solid #1c1c1c", background: "transparent", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", color: "#1c1c1c", cursor: "pointer", fontFamily: "inherit" }}>
+            CONTINUE EDITING
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+ 
+// ─── App (route dispatcher) ────────────────────────────────────────────────────
+ 
+export default function App() {
+  const isProjection =
+    window.location.pathname === "/projection" ||
+    new URLSearchParams(window.location.search).get("projection") === "true"
+ 
+  return isProjection ? <ProjectionView /> : <MainView />
+}
