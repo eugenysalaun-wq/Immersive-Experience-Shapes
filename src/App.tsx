@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
 import { ShapeRenderer, type Settings } from "./ShapeRenderer"
- 
+
 // ─── Constants ────────────────────────────────────────────────────────────────
- 
 const SLIDER_DEFS: { key: keyof Omit<Settings, "color">; label: string; left: string; right: string }[] = [
   { key: "movement", label: "Energy",        left: "Calm",        right: "Energetic"   },
   { key: "roundness",   label: "Attitude",      left: "Direct",      right: "Polite"      },
@@ -11,7 +10,7 @@ const SLIDER_DEFS: { key: keyof Omit<Settings, "color">; label: string; left: st
   { key: "spacing",     label: "Proximity",     left: "Connected",   right: "Separated"   },
   { key: "size",        label: "Presence",      left: "Subtle",      right: "Noticeable"  },
 ]
- 
+
 const DEFAULT: Settings = {
   roundness: 0.65,
   sharpness: 0.35,
@@ -23,7 +22,7 @@ const DEFAULT: Settings = {
   color: "#5BA88C",
   quantity: 4,
 }
- 
+
 const COLOR_SPECTRUM = [
   "#C13C8F", // magenta
   "#D94A45", // red
@@ -36,18 +35,18 @@ const COLOR_SPECTRUM = [
   "#6E57A8", // purple
   "#1A1A1A", // black
 ]
- 
+
 const STORAGE_KEY = "shape-studio-settings"
- 
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
- 
+
 function deriveColor(s: Settings): string {
   if (s.size < 0.12) return "#1C1C1C"
   const score = s.deformation * 0.30 + s.roundness * 0.20 + s.sharpness * 0.20
               + s.texture * 0.15 + s.spacing * 0.10 + s.size * 0.05
   return COLOR_SPECTRUM[Math.min(COLOR_SPECTRUM.length - 1, Math.floor(score * COLOR_SPECTRUM.length))]
 }
- 
+
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -57,9 +56,9 @@ function loadSettings(): Settings {
   }
   return DEFAULT
 }
- 
+
 // ─── ShapeSlider ──────────────────────────────────────────────────────────────
- 
+
 function ShapeSlider(p: {
   label: string
   left: string
@@ -445,9 +444,335 @@ function ColorPicker(p: {
     </div>
   )
 }
- 
+
+type QuestionnaireProps = {
+  onComplete: (generatedSettings: Settings) => void
+}
+
+function Questionnaire({ onComplete }: QuestionnaireProps) {
+  const [answers, setAnswers] = useState({
+    movement: DEFAULT.movement,
+    roundness: DEFAULT.roundness,
+    sharpness: DEFAULT.sharpness,
+    texture: DEFAULT.texture,
+    spacing: DEFAULT.spacing,
+    size: DEFAULT.size,
+    color: DEFAULT.color,
+  })
+
+  function updateAnswer<K extends keyof typeof answers>(
+    key: K,
+    value: number
+  ) {
+    setAnswers((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  const questions = [
+    {
+      key: "movement",
+      question: "How would you describe your usual energy?",
+      left: "Calm",
+      right: "Energetic",
+    },
+    {
+      key: "roundness",
+      question: "How do you usually approach other people?",
+      left: "Direct",
+      right: "Polite",
+    },
+    {
+      key: "sharpness",
+      question: "How do you usually behave in social situations?",
+      left: "Introverted",
+      right: "Extroverted",
+    },
+    {
+      key: "texture",
+      question: "How comfortable are you expressing yourself?",
+      left: "Confident",
+      right: "Reserved",
+    },
+    {
+      key: "spacing",
+      question: "How close do you tend to feel to the people around you?",
+      left: "Connected",
+      right: "Separated",
+    },
+    {
+      key: "size",
+      question: "How much presence do you feel you have in a space?",
+      left: "Subtle",
+      right: "Noticeable",
+    },
+  ] as const
+
+  const totalQuestions = questions.length + 1
+
+  function generateShape() {
+    const generatedSettings: Settings = {
+      ...DEFAULT,
+      ...answers,
+    }
+
+    onComplete(generatedSettings)
+  }
+
+  return (
+    <div
+      style={{
+        height: "100vh",
+        overflowY: "auto",
+        scrollSnapType: "y mandatory",
+        background: "#F5F4F1",
+        fontFamily: '"DM Sans", sans-serif',
+      }}
+    >
+      {questions.map(({ key, question, left, right }, index) => (
+        <section
+          key={key}
+          style={{
+            height: "100vh",
+            scrollSnapAlign: "start",
+            scrollSnapStop: "always",
+  
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+  
+            padding: "40px 24px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 620,
+            }}
+          >
+            {/* Question number */}
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "#B4B3AE",
+                marginBottom: 18,
+              }}
+            >
+              Question {index + 1} / {totalQuestions}
+            </div>
+  
+            {/* Question */}
+            <div
+              style={{
+                fontSize: 36,
+                lineHeight: 1.15,
+                fontWeight: 600,
+                color: "#1c1c1c",
+                letterSpacing: "-0.035em",
+                marginBottom: 42,
+              }}
+            >
+              {question}
+            </div>
+  
+            {/* Answer slider */}
+            <ShapeSlider
+              label=""
+              left={left}
+              right={right}
+              value={answers[key]}
+              onChange={(value) => updateAnswer(key, value)}
+            />
+  
+            {/* Scroll hint */}
+            {index < questions.length - 1 && (
+              <div
+                style={{
+                  marginTop: 55,
+                  fontSize: 11,
+                  color: "#B4B3AE",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Scroll to continue ↓
+              </div>
+            )}
+          </div>
+        </section>
+      ))}
+
+      {/* Color question */}
+      <section
+        style={{
+          height: "100vh",
+          scrollSnapAlign: "start",
+          scrollSnapStop: "always",
+
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          padding: "40px 24px",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 620,
+          }}
+        >
+          {/* Question number */}
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#B4B3AE",
+              marginBottom: 18,
+            }}
+          >
+            Question {totalQuestions} / {totalQuestions}
+          </div>
+
+          {/* Question */}
+          <div
+            style={{
+              fontSize: 36,
+              lineHeight: 1.15,
+              fontWeight: 600,
+              color: "#1c1c1c",
+              letterSpacing: "-0.035em",
+              marginBottom: 38,
+            }}
+          >
+            Which color represents you best?
+          </div>
+
+          <div
+            style={{
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: "#8A8984",
+              marginBottom: 30,
+            }}
+          >
+            Choose the color that you feel most connected to.
+          </div>
+
+          <ColorWheelPicker
+            value={answers.color}
+            onChange={(color) =>
+              setAnswers((prev) => ({
+                ...prev,
+                color,
+              }))
+            }
+          />
+
+          <div
+            style={{
+              marginTop: 45,
+              fontSize: 11,
+              color: "#B4B3AE",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Scroll to reveal your shape ↓
+          </div>
+        </div>
+      </section>
+  
+      {/* Final screen */}
+      <section
+        style={{
+          height: "100vh",
+          scrollSnapAlign: "start",
+          scrollSnapStop: "always",
+  
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+  
+          padding: "40px 24px",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 620,
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#B4B3AE",
+              marginBottom: 18,
+            }}
+          >
+            Your Identity
+          </div>
+  
+          <div
+            style={{
+              fontSize: 42,
+              lineHeight: 1.1,
+              fontWeight: 600,
+              color: "#1c1c1c",
+              letterSpacing: "-0.04em",
+              marginBottom: 16,
+            }}
+          >
+            Your shape is ready.
+          </div>
+  
+          <div
+            style={{
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: "#8A8984",
+              marginBottom: 40,
+            }}
+          >
+            Your answers will now be translated into your unique 3D shape.
+          </div>
+  
+          <button
+            onClick={generateShape}
+            style={{
+              width: "100%",
+              padding: "17px 0",
+              borderRadius: 12,
+              border: "none",
+              background: "#1c1c1c",
+              color: "#ffffff",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            GENERATE MY SHAPE
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 // ─── Projection view (fullscreen black, shape only) ────────────────────────────
- 
+
 function ProjectionView() {
   const [settings, setSettings] = useState<Settings>(loadSettings)
 
@@ -514,14 +839,15 @@ function ProjectionView() {
     </div>
   )
 }
- 
+
 // ─── Main view (existing UI) ───────────────────────────────────────────────────
- 
+
 function MainView() {
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [finished,  setFinished] = useState(false)
   const [webglError, setWebglError] = useState(false)
- 
+  const [stage, setStage] = useState<"questions" | "editor">("questions")
+
 // Every time settings change, save locally AND broadcast through Vite's WebSocket.
 useEffect(() => {
   try {
@@ -535,18 +861,29 @@ useEffect(() => {
     import.meta.hot.send("shape-sync:update", settings)
   }
 }, [settings])
- 
+
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }))
+  }
+
+  if (stage === "questions") {
+    return (
+      <Questionnaire
+        onComplete={(generatedSettings) => {
+          setSettings(generatedSettings)
+          setStage("editor")
+        }}
+      />
+    )
   }
   
   return (
     <div style={{ display: "flex", height: "100%", fontFamily: '"DM Sans", sans-serif', position: "relative", overflow: "hidden" }}>
- 
+
       {/* Left: 3D viewport */}
       <div style={{ flex: 1, position: "relative", background: "#F5F4F1" }}>
         <ShapeRenderer settings={settings} background="#F5F4F1" onWebglError={() => setWebglError(true)} />
- 
+
         {webglError && (
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: "#1c1c1c" }}>WebGL unavailable</div>
@@ -555,7 +892,7 @@ useEffect(() => {
             </div>
           </div>
         )}
- 
+
         <div style={{ position: "absolute", top: 28, left: 32, fontSize: 13, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", color: "#1c1c1c", opacity: 0.5, userSelect: "none", pointerEvents: "none" }}>
           If you could deconstruct yourself into a shape, what shape would you be?
         </div>
@@ -568,15 +905,15 @@ useEffect(() => {
           Drag to rotate · Scroll to zoom
         </div>
       </div>
- 
+
       {/* Right: settings panel */}
       <div style={{ width: 308, background: "#fff", borderLeft: "1px solid #ECEAE5", display: "flex", flexDirection: "column", overflow: "hidden" }}>
- 
+
         <div style={{ padding: "30px 28px 22px", borderBottom: "1px solid #F2F1ED" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#B4B3AE", marginBottom: 7 }}>Personality</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: "#1c1c1c", letterSpacing: "-0.03em" }}>Shape</div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "#1c1c1c", letterSpacing: "-0.03em" }}>How do you perceive yourself?</div>
         </div>
- 
+
         <div
           className="panel-scroll"
           style={{
@@ -646,7 +983,7 @@ useEffect(() => {
           </button>
         </div>
       </div>
- 
+
       {/* Finish overlay */}
       {finished && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(245,244,241,0.90)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -662,13 +999,13 @@ useEffect(() => {
     </div>
   )
 }
- 
+
 // ─── App (route dispatcher) ────────────────────────────────────────────────────
- 
+
 export default function App() {
   const isProjection =
     window.location.pathname === "/projection" ||
     new URLSearchParams(window.location.search).get("projection") === "true"
- 
+
   return isProjection ? <ProjectionView /> : <MainView />
 }
