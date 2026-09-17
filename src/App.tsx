@@ -94,6 +94,300 @@ function ShapeSlider(p: {
   )
 }
 
+function hsvToHex(h: number, s: number, v: number): string {
+  const c = v * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = v - c
+
+  let r = 0
+  let g = 0
+  let b = 0
+
+  if (h < 60) {
+    r = c
+    g = x
+  } else if (h < 120) {
+    r = x
+    g = c
+  } else if (h < 180) {
+    g = c
+    b = x
+  } else if (h < 240) {
+    g = x
+    b = c
+  } else if (h < 300) {
+    r = x
+    b = c
+  } else {
+    r = c
+    b = x
+  }
+
+  const toHex = (n: number) =>
+    Math.round((n + m) * 255)
+      .toString(16)
+      .padStart(2, "0")
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+}
+
+function hexToHsv(hex: string) {
+  const clean = hex.replace("#", "")
+
+  const r = parseInt(clean.substring(0, 2), 16) / 255
+  const g = parseInt(clean.substring(2, 4), 16) / 255
+  const b = parseInt(clean.substring(4, 6), 16) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const delta = max - min
+
+  let h = 0
+
+  if (delta !== 0) {
+    if (max === r) {
+      h = 60 * (((g - b) / delta) % 6)
+    } else if (max === g) {
+      h = 60 * ((b - r) / delta + 2)
+    } else {
+      h = 60 * ((r - g) / delta + 4)
+    }
+  }
+
+  if (h < 0) h += 360
+
+  const s = max === 0 ? 0 : delta / max
+
+  return {
+    h,
+    s,
+    v: max,
+  }
+}
+
+function ColorWheelPicker(p: {
+  value: string
+  onChange: (color: string) => void
+}) {
+  const hsv = hexToHsv(p.value)
+
+  const angle = (hsv.h * Math.PI) / 180
+
+  const pointerX =
+    50 + Math.sin(angle) * hsv.s * 46
+
+  const pointerY =
+    50 - Math.cos(angle) * hsv.s * 46
+
+  const updateWheel = (
+    e: React.PointerEvent<HTMLDivElement>
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+
+    const x = e.clientX - rect.left - centerX
+    const y = e.clientY - rect.top - centerY
+
+    const maxRadius = rect.width / 2
+
+    const distance =
+      Math.sqrt(x * x + y * y)
+
+    const saturation =
+      Math.min(distance / maxRadius, 1)
+
+    let hue =
+      (Math.atan2(x, -y) * 180) /
+      Math.PI
+
+    if (hue < 0) hue += 360
+
+    p.onChange(
+      hsvToHex(
+        hue,
+        saturation,
+        hsv.v
+      )
+    )
+  }
+
+  const updateBrightness = (value: number) => {
+    p.onChange(
+      hsvToHex(
+        hsv.h,
+        hsv.s,
+        value
+      )
+    )
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom: 30,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: "#1c1c1c",
+          marginBottom: 16,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Color
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(
+              e.pointerId
+            )
+
+            updateWheel(e)
+          }}
+          onPointerMove={(e) => {
+            if (
+              e.currentTarget.hasPointerCapture(
+                e.pointerId
+              )
+            ) {
+              updateWheel(e)
+            }
+          }}
+          style={{
+            width: 210,
+            height: 210,
+            borderRadius: "50%",
+            position: "relative",
+            cursor: "crosshair",
+
+            background: `
+              radial-gradient(
+                circle,
+                white 0%,
+                rgba(255,255,255,0.85) 15%,
+                rgba(255,255,255,0) 70%
+              ),
+              conic-gradient(
+                from 0deg,
+                #ff0000,
+                #ffff00,
+                #00ff00,
+                #00ffff,
+                #0000ff,
+                #ff00ff,
+                #ff0000
+              )
+            `,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+
+              left: `${pointerX}%`,
+              top: `${pointerY}%`,
+
+              width: 18,
+              height: 18,
+
+              borderRadius: "50%",
+
+              border: "3px solid white",
+
+              boxShadow:
+                "0 0 0 1px rgba(0,0,0,0.45), 0 2px 5px rgba(0,0,0,0.25)",
+
+              transform:
+                "translate(-50%, -50%)",
+
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 22,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              color: "#B4B3AE",
+            }}
+          >
+            Brightness
+          </span>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                background: p.value,
+                border:
+                  "1px solid rgba(0,0,0,0.12)",
+              }}
+            />
+
+            <span
+              style={{
+                fontSize: 10,
+                color: "#B4B3AE",
+                fontFamily: "monospace",
+              }}
+            >
+              {p.value}
+            </span>
+          </div>
+        </div>
+
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={hsv.v}
+          onChange={(e) =>
+            updateBrightness(
+              parseFloat(e.target.value)
+            )
+          }
+          style={{
+            width: "100%",
+          }}
+        />
+      </div>
+    </div>
+  )
+}
 
 function ColorPicker(p: {
   colors: string[]
@@ -313,13 +607,14 @@ useEffect(() => {
               onChange={(v) => update("quantity", v)}
             />
 
-          <ColorPicker
-            colors={COLOR_SPECTRUM}
+          <ColorWheelPicker
             value={settings.color}
-            onChange={(color) => update("color", color)}
+            onChange={(color) =>
+              update("color", color)
+            }
           />
         </div>
- 
+
         <div
           style={{
             padding: "18px 28px 32px",
