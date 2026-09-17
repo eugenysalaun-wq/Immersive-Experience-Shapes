@@ -70,22 +70,66 @@ function ShapeSlider(p: { label: string; left: string; right: string; value: num
  
 function ProjectionView() {
   const [settings, setSettings] = useState<Settings>(loadSettings)
- 
+
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY || !e.newValue) return
+    // Applies settings received from either localStorage or the Vite WebSocket.
+    const applySettings = (incoming: Settings) => {
+      const nextSettings = { ...DEFAULT, ...incoming }
+
+      setSettings(nextSettings)
+
+      // Keep a local copy as a fallback.
       try {
-        setSettings({ ...DEFAULT, ...JSON.parse(e.newValue) })
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSettings))
       } catch {
-        // ignore malformed payloads
+        // localStorage unavailable — WebSocket sync still works.
       }
     }
+
+    // Existing browser-tab synchronization remains as a fallback.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return
+
+      try {
+        applySettings(JSON.parse(e.newValue))
+      } catch {
+        // Ignore malformed payloads.
+      }
+    }
+
     window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
+
+    // Network synchronization.
+    // This works even when /projection is running inside TouchDesigner.
+    const onRemoteSettings = (incoming: Settings) => {
+      applySettings(incoming)
+    }
+
+    if (import.meta.hot) {
+      import.meta.hot.on("shape-sync:update", onRemoteSettings)
+
+      // Ask the server for the latest existing shape immediately.
+      import.meta.hot.send("shape-sync:request")
+    }
+
+    return () => {
+      window.removeEventListener("storage", onStorage)
+
+      if (import.meta.hot) {
+        import.meta.hot.off("shape-sync:update", onRemoteSettings)
+      }
+    }
   }, [])
- 
+
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "#000", overflow: "hidden" }}>
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        background: "#000",
+        overflow: "hidden",
+      }}
+    >
       <ShapeRenderer settings={settings} background="#000000" />
     </div>
   )
@@ -98,14 +142,19 @@ function MainView() {
   const [finished,  setFinished] = useState(false)
   const [webglError, setWebglError] = useState(false)
  
-  // Every time settings change, broadcast them to any open /projection tab.
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-    } catch {
-      // localStorage unavailable — projection sync simply won't work in this context
-    }
-  }, [settings])
+// Every time settings change, save locally AND broadcast through Vite's WebSocket.
+useEffect(() => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // localStorage is only a fallback.
+  }
+
+  // Sends the exact existing Settings object to all projection clients.
+  if (import.meta.hot) {
+    import.meta.hot.send("shape-sync:update", settings)
+  }
+}, [settings])
  
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }))

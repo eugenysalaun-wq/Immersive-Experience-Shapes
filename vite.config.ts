@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
+      shapeSyncPlugin(),
     ],
     resolve: {
       alias: {
@@ -353,6 +354,33 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
           res.end(await server.transformIndexHtml(url, HTML_BOOTSTRAP))
         } catch (err) {
           next(err as Error)
+        }
+      })
+    },
+  }
+}
+
+function shapeSyncPlugin(): Plugin {
+  let latestSettings: unknown = null
+
+  return {
+    name: 'shape-sync',
+    apply: 'serve',
+
+    configureServer(server) {
+      // Main page sends updated shape settings here.
+      server.ws.on('shape-sync:update', (data) => {
+        latestSettings = data
+
+        // Broadcast the exact same settings to every connected client,
+        // including /projection inside TouchDesigner.
+        server.ws.send('shape-sync:update', data)
+      })
+
+      // Projection page asks for the most recent shape when it first opens.
+      server.ws.on('shape-sync:request', (_data, client) => {
+        if (latestSettings !== null) {
+          client.send('shape-sync:update', latestSettings)
         }
       })
     },
