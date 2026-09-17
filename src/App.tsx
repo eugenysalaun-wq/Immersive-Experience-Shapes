@@ -4,23 +4,37 @@ import { ShapeRenderer, type Settings } from "./ShapeRenderer"
 // ─── Constants ────────────────────────────────────────────────────────────────
  
 const SLIDER_DEFS: { key: keyof Omit<Settings, "color">; label: string; left: string; right: string }[] = [
-  { key: "deformation", label: "Energy",        left: "Calm",        right: "Energetic"   },
-  { key: "roundness",   label: "Attitude",      left: "Polite",      right: "Direct"      },
+  { key: "movement", label: "Energy",        left: "Calm",        right: "Energetic"   },
+  { key: "roundness",   label: "Attitude",      left: "Direct",      right: "Polite"      },
   { key: "sharpness",   label: "Behavior",      left: "Introverted", right: "Extroverted" },
-  { key: "texture",     label: "Assertiveness", left: "Reserved",    right: "Confident"   },
+  { key: "texture",     label: "Assertiveness", left: "Confident",    right: "Reserved"   },
   { key: "spacing",     label: "Proximity",     left: "Connected",   right: "Separated"   },
   { key: "size",        label: "Presence",      left: "Subtle",      right: "Noticeable"  },
 ]
  
 const DEFAULT: Settings = {
-  roundness: 0.65, sharpness: 0.35, spacing: 0.45,
-  size: 0.60, deformation: 0.50, texture: 0.30,
+  roundness: 0.65,
+  sharpness: 0.35,
+  spacing: 0.45,
+  size: 0.60,
+  deformation: 0.50,
+  texture: 0.30,
+  movement: 0.50,
   color: "#5BA88C",
+  quantity: 4,
 }
  
 const COLOR_SPECTRUM = [
-  "#EF4444", "#F97316", "#EAB308", "#84CC16", "#22C55E",
-  "#06B6D4", "#3B82F6", "#8B5CF6", "#D946EF",
+  "#C13C8F", // magenta
+  "#D94A45", // red
+  "#E8923A", // orange
+  "#E7D928", // yellow
+  "#A9C93A", // lime
+  "#2FA144", // green
+  "#18A7A6", // teal
+  "#2E83C8", // blue
+  "#6E57A8", // purple
+  "#1A1A1A", // black
 ]
  
 const STORAGE_KEY = "shape-studio-settings"
@@ -46,21 +60,93 @@ function loadSettings(): Settings {
  
 // ─── ShapeSlider ──────────────────────────────────────────────────────────────
  
-function ShapeSlider(p: { label: string; left: string; right: string; value: number; onChange: (v: number) => void }) {
-  return (
+function ShapeSlider(p: {
+  label: string
+  left: string
+  right: string
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  step?: number
+}) {  return (
     <div style={{ marginBottom: 32 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: "#1c1c1c", marginBottom: 14, letterSpacing: "-0.01em" }}>
         {p.label}
       </div>
       <input
-        type="range" min="0" max="1" step="0.01" value={p.value}
+        type="range" min={p.min ?? 0} max={p.max ?? 1} step={p.step ?? 0.01} value={p.value}
         onChange={(e) => p.onChange(parseFloat(e.target.value))}
         className="shape-slider"
-        style={{ "--progress": `${p.value * 100}%` } as React.CSSProperties}
+        style={{
+          "--progress": `${
+            ((p.value - (p.min ?? 0)) /
+              ((p.max ?? 1) - (p.min ?? 0))) *
+            100
+          }%`,
+        } as React.CSSProperties}
       />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
         <span style={{ fontSize: 11, color: "#B4B3AE" }}>{p.left}</span>
         <span style={{ fontSize: 11, color: "#B4B3AE" }}>{p.right}</span>
+      </div>
+    </div>
+  )
+}
+
+
+function ColorPicker(p: {
+  colors: string[]
+  value: string
+  onChange: (color: string) => void
+}) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: "#1c1c1c",
+          marginBottom: 16,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Color
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: 16,
+          justifyItems: "center",
+        }}
+      >
+        {p.colors.map((color) => {
+          const selected = p.value === color
+
+          return (
+            <button
+              key={color}
+              onClick={() => p.onChange(color)}
+              aria-label={`Select color ${color}`}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: "50%",
+                border: selected ? "2px solid #1c1c1c" : "1px solid transparent",
+                outline: selected ? "4px solid rgba(91,168,140,0.55)" : "none",
+                background: color,
+                cursor: "pointer",
+                padding: 0,
+                boxShadow: selected
+                  ? "0 0 0 6px rgba(91,168,140,0.18)"
+                  : "0 1px 4px rgba(0,0,0,0.10)",
+                transition: "transform 0.14s ease, box-shadow 0.14s ease",
+              }}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -159,9 +245,7 @@ useEffect(() => {
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
- 
-  const handleGenerateColor = () => update("color", deriveColor(settings))
- 
+  
   return (
     <div style={{ display: "flex", height: "100%", fontFamily: '"DM Sans", sans-serif', position: "relative", overflow: "hidden" }}>
  
@@ -179,7 +263,7 @@ useEffect(() => {
         )}
  
         <div style={{ position: "absolute", top: 28, left: 32, fontSize: 13, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", color: "#1c1c1c", opacity: 0.5, userSelect: "none", pointerEvents: "none" }}>
-          Shape Studio
+          If you could deconstruct yourself into a shape, what shape would you be?
         </div>
         <div style={{ position: "absolute", bottom: 26, left: 32, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#B4B3AE", userSelect: "none", pointerEvents: "none" }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -199,28 +283,70 @@ useEffect(() => {
           <div style={{ fontSize: 22, fontWeight: 600, color: "#1c1c1c", letterSpacing: "-0.03em" }}>Shape</div>
         </div>
  
-        <div className="panel-scroll" style={{ flex: 1, overflowY: "auto", padding: "26px 28px 8px" }}>
+        <div
+          className="panel-scroll"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "26px 28px 8px",
+          }}
+        >
           {SLIDER_DEFS.map(({ key, label, left, right }) => (
-            <ShapeSlider key={key} label={label} left={left} right={right}
+            <ShapeSlider
+              key={key}
+              label={label}
+              left={left}
+              right={right}
               value={settings[key] as number}
               onChange={(v) => update(key, v)}
             />
           ))}
-          {settings.color !== DEFAULT.color && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: -8 }}>
-              <div style={{ width: 20, height: 20, borderRadius: "50%", background: settings.color, flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }} />
-              <span style={{ fontSize: 11, color: "#B4B3AE" }}>Generated color</span>
-            </div>
-          )}
+
+          <ShapeSlider
+              label="Quantity"
+              left="1"
+              right="6"
+              value={settings.quantity}
+              min={2}
+              max={6}
+              step={1}
+              onChange={(v) => update("quantity", v)}
+            />
+
+          <ColorPicker
+            colors={COLOR_SPECTRUM}
+            value={settings.color}
+            onChange={(color) => update("color", color)}
+          />
         </div>
  
-        <div style={{ padding: "18px 28px 32px", borderTop: "1px solid #F2F1ED", display: "flex", flexDirection: "column", gap: 11 }}>
-          <button className="btn-random" onClick={handleGenerateColor}
-            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "1.5px solid #DDDCD8", background: "transparent", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", color: "#1c1c1c", cursor: "pointer", fontFamily: "inherit", transition: "background 0.14s" }}>
-            GENERATE COLOR
-          </button>
-          <button className="btn-finish" onClick={() => setFinished(true)}
-            style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: "#1c1c1c", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", color: "#ffffff", cursor: "pointer", fontFamily: "inherit", transition: "background 0.14s" }}>
+        <div
+          style={{
+            padding: "18px 28px 32px",
+            borderTop: "1px solid #F2F1ED",
+            display: "flex",
+            flexDirection: "column",
+            gap: 11,
+          }}
+        >
+          <button
+            className="btn-finish"
+            onClick={() => setFinished(true)}
+            style={{
+              width: "100%",
+              padding: "14px 0",
+              borderRadius: 12,
+              border: "none",
+              background: "#1c1c1c",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              color: "#ffffff",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "background 0.14s",
+            }}
+          >
             FINISH
           </button>
         </div>

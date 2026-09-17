@@ -8,7 +8,9 @@ export interface Settings {
   size: number
   deformation: number
   texture: number
+  movement: number
   color: string
+  quantity: number
 }
 
 // Blob configs: [radius, detail, baseX, baseY, baseZ]
@@ -18,6 +20,7 @@ const BLOB_CFGS: [number, number, number, number, number][] = [
   [0.52, 5, -1.30, -0.90,  0.20],
   [0.48, 5, -0.75,  1.40, -0.40],
   [0.40, 4,  1.20, -1.10,  0.50],
+  [0.44, 5, -1.55,  0.35,  0.45],
 ]
 
 function triNoise(x: number, y: number, z: number, f: number, t: number) {
@@ -121,66 +124,194 @@ export function ShapeRenderer(p: { settings: Settings; background: string; onWeb
 
     const animate = () => {
       animId = requestAnimationFrame(animate)
-      time += 0.007
-
-      const s      = settingsRef.current
-      const freq   = 1.6 + s.sharpness * 3.5
-      const dAmp   = s.deformation * 0.44
-      const tAmp   = s.texture * 0.14
+    
+      const s = settingsRef.current
+    
+      // ─── INTERNAL MOVEMENT ─────────────────────────────────────────────
+      // The internal deformation always moves slowly.
+      // Energy does NOT control this speed.
+      time += 0.0035
+    
+      // ─── ENERGY ────────────────────────────────────────────────────────
+      // Non-linear curve:
+      // Calm = gentle rotation
+      // Energetic = dramatically faster rotation
+      const energyCurve = Math.pow(s.movement, 1.6)
+    
+      // ─── SHAPE VARIABLES ───────────────────────────────────────────────
+      const freq = 1.6 + s.sharpness * 3.5
+      const dAmp = s.deformation * 0.44
       const rBlend = 1.0 - s.roundness * 0.74
-      const scale  = 0.42 + s.size * 0.92
-
+      const scale = 0.42 + s.size * 0.92
+    
+      // ─── ASSERTIVENESS ─────────────────────────────────────────────────
+      // Reserved = almost smooth
+      // Confident = much more textured
+      const textureAmp = s.texture * 0.16
+    
       blobs.forEach((b, idx) => {
-        const pos  = b.geo.attributes.position.array as Float32Array
-        const orig = b.orig
-        const t    = time + idx * 1.73
+        // Quantity controls how many blobs are visible.
+        b.mesh.visible = idx < Math.round(s.quantity)
 
-        for (let i = 0; i < pos.length; i += 3) {
-          const ox = orig[i], oy = orig[i + 1], oz = orig[i + 2]
-          const len = Math.sqrt(ox * ox + oy * oy + oz * oz) || 1
-          const nx = ox / len, ny = oy / len, nz = oz / len
-
-          const n1 = triNoise(nx, ny, nz, freq, t)
-          const n2 = triNoise(nx, ny, nz, freq * 2.8, t * 1.45) * 0.38
-
-          const smoothD = n1 * dAmp + n2 * tAmp
-          const sharpD  = Math.sign(n1) * Math.pow(Math.abs(n1), 0.22) * dAmp + n2 * tAmp
-          const total   = (smoothD * s.roundness + sharpD * (1 - s.roundness)) * rBlend
-
-          pos[i]     = ox + nx * total
-          pos[i + 1] = oy + ny * total
-          pos[i + 2] = oz + nz * total
+        if (!b.mesh.visible) {
+          return
         }
-
+        const pos = b.geo.attributes.position.array as Float32Array
+        const orig = b.orig
+        const t = time + idx * 1.73
+    
+        for (let i = 0; i < pos.length; i += 3) {
+          const ox = orig[i]
+          const oy = orig[i + 1]
+          const oz = orig[i + 2]
+    
+          const len = Math.sqrt(
+            ox * ox +
+            oy * oy +
+            oz * oz
+          ) || 1
+    
+          const nx = ox / len
+          const ny = oy / len
+          const nz = oz / len
+    
+          // ─── ANIMATED DEFORMATION ─────────────────────────────────────
+          const n1 = triNoise(
+            nx,
+            ny,
+            nz,
+            freq,
+            t
+          )
+    
+          const smoothD =
+            n1 * dAmp
+    
+          const sharpD =
+            Math.sign(n1) *
+            Math.pow(Math.abs(n1), 0.22) *
+            dAmp
+    
+          const deformationDetail =
+            (
+              smoothD * s.roundness +
+              sharpD * (1 - s.roundness)
+            ) * rBlend
+    
+          // ─── STATIC SURFACE TEXTURE ───────────────────────────────────
+          // This does NOT use "time", so the texture doesn't move.
+          // Assertiveness therefore changes how the object LOOKS,
+          // rather than creating more animation.
+          const textureNoise = triNoise(
+            nx,
+            ny,
+            nz,
+            8.0 + s.texture * 7.0,
+            0.75
+          )
+    
+          const surfaceTexture =
+            textureNoise * textureAmp
+    
+          const total =
+            deformationDetail +
+            surfaceTexture
+    
+          pos[i] =
+            ox + nx * total
+    
+          pos[i + 1] =
+            oy + ny * total
+    
+          pos[i + 2] =
+            oz + nz * total
+        }
+    
         b.geo.attributes.position.needsUpdate = true
         b.geo.computeVertexNormals()
-
+    
+        // ─── SPACING ─────────────────────────────────────────────────────
         if (!b.isCenter) {
-          const sp = 0.55 + s.spacing * 1.55
-          b.mesh.position.set(b.bx * sp, b.by * sp, b.bz * sp)
+          const sp =
+            0.55 +
+            s.spacing * 1.55
+    
+          b.mesh.position.set(
+            b.bx * sp,
+            b.by * sp,
+            b.bz * sp
+          )
         }
-
+    
+        // ─── SIZE ────────────────────────────────────────────────────────
         b.mesh.scale.setScalar(scale)
+    
+        // ─── COLOR ───────────────────────────────────────────────────────
         b.mat.color.set(s.color)
-        b.mat.roughness = 0.10 + s.texture * 0.52
+    
+        // ─── ASSERTIVENESS MATERIAL ──────────────────────────────────────
+        // Reserved = glossy / smooth
+        // Confident = matte / rough
+        b.mat.roughness =
+          0.08 +
+          s.texture * 0.84
       })
-
+    
+      // ─── ENERGY: ROTATION ──────────────────────────────────────────────
       if (autoSpin) {
-        spherical.theta += 0.003
+        // Calm still rotates.
+        // Energetic becomes substantially faster.
+        const rotationSpeed =
+          0.0035 +
+          energyCurve * 0.032
+    
+        spherical.theta += rotationSpeed
+    
+        // Only a SMALL amount of instability at high Energy.
+        // The main visual difference remains rotation speed.
+        group.rotation.x =
+          Math.sin(time * 4.0) *
+          energyCurve *
+          0.07
+    
+        group.rotation.z =
+          Math.sin(time * 5.5 + 1.2) *
+          energyCurve *
+          0.05
       } else if (!dragging) {
-        vTheta *= 0.88; vPhi *= 0.88
+        // Keep your existing inertia after manually rotating the shape.
+        vTheta *= 0.88
+        vPhi *= 0.88
+    
         spherical.theta += vTheta
-        spherical.phi    = Math.max(0.18, Math.min(Math.PI - 0.18, spherical.phi + vPhi))
-        if (Math.abs(vTheta) < 0.0001 && Math.abs(vPhi) < 0.0001) autoSpin = true
+    
+        spherical.phi = Math.max(
+          0.18,
+          Math.min(
+            Math.PI - 0.18,
+            spherical.phi + vPhi
+          )
+        )
+    
+        if (
+          Math.abs(vTheta) < 0.0001 &&
+          Math.abs(vPhi) < 0.0001
+        ) {
+          autoSpin = true
+        }
       }
-
+    
+      // ─── CAMERA ────────────────────────────────────────────────────────
       const { theta, phi, radius } = spherical
+    
       camera.position.set(
         radius * Math.sin(phi) * Math.sin(theta),
         radius * Math.cos(phi),
-        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.cos(theta)
       )
+    
       camera.lookAt(0, 0, 0)
+    
       renderer.render(scene, camera)
     }
 
