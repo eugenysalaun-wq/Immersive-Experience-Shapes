@@ -1,14 +1,50 @@
 import { useEffect, useState } from "react"
 import { ShapeRenderer, type Settings } from "./ShapeRenderer"
+import { CollectiveRenderer } from "./CollectiveRenderer"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLIDER_DEFS: { key: keyof Omit<Settings, "color">; label: string; left: string; right: string }[] = [
-  { key: "movement", label: "Energy",        left: "Calm",        right: "Energetic"   },
-  { key: "roundness",   label: "Attitude",      left: "Direct",      right: "Polite"      },
-  { key: "sharpness",   label: "Behavior",      left: "Introverted", right: "Extroverted" },
-  { key: "texture",     label: "Assertiveness", left: "Confident",    right: "Reserved"   },
-  { key: "spacing",     label: "Proximity",     left: "Connected",   right: "Separated"   },
-  { key: "size",        label: "Presence",      left: "Subtle",      right: "Noticeable"  },
+const SLIDER_DEFS: {
+  key: keyof Omit<Settings, "color" | "quantity">
+  label: string
+  left: string
+  right: string
+}[] = [
+  {
+    key: "movement",
+    label: "Rhythm",
+    left: "Calm",
+    right: "Energetic",
+  },
+  {
+    key: "roundness",
+    label: "Softness",
+    left: "Defined",
+    right: "Soft",
+  },
+  {
+    key: "sharpness",
+    label: "Complexity",
+    left: "Simple",
+    right: "Complex",
+  },
+  {
+    key: "texture",
+    label: "Surface",
+    left: "Smooth",
+    right: "Textured",
+  },
+  {
+    key: "spacing",
+    label: "Connection",
+    left: "Together",
+    right: "Apart",
+  },
+  {
+    key: "size",
+    label: "Scale",
+    left: "Subtle",
+    right: "Bold",
+  },
 ]
 
 const DEFAULT: Settings = {
@@ -37,6 +73,7 @@ const COLOR_SPECTRUM = [
 ]
 
 const STORAGE_KEY = "shape-studio-settings"
+const IDENTITIES_KEY = "shape-studio-identities"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +92,46 @@ function loadSettings(): Settings {
     // localStorage unavailable (e.g. private mode) — fall back to defaults
   }
   return DEFAULT
+}
+
+function loadIdentities(): Settings[] {
+  try {
+    const raw =
+      localStorage.getItem(
+        IDENTITIES_KEY
+      )
+
+    if (raw) {
+      return JSON.parse(raw)
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+
+  return []
+}
+
+function saveIdentity(
+  settings: Settings
+) {
+  try {
+    const current =
+      loadIdentities()
+
+    const next = [
+      ...current,
+      settings,
+    ].slice(-20)
+
+    localStorage.setItem(
+      IDENTITIES_KEY,
+      JSON.stringify(next)
+    )
+
+    return next
+  } catch {
+    return [settings]
+  }
 }
 
 // ─── ShapeSlider ──────────────────────────────────────────────────────────────
@@ -473,39 +550,39 @@ function Questionnaire({ onComplete }: QuestionnaireProps) {
   const questions = [
     {
       key: "movement",
-      question: "How would you describe your usual energy?",
+      question: "How would you describe the rhythm you bring into a space?",
       left: "Calm",
       right: "Energetic",
     },
     {
       key: "roundness",
-      question: "How do you usually approach other people?",
+      question: "How do you tend to communicate with others?",
       left: "Direct",
-      right: "Polite",
+      right: "Gentle",
     },
     {
       key: "sharpness",
-      question: "How do you usually behave in social situations?",
-      left: "Introverted",
-      right: "Extroverted",
+      question: "When you are around other people, where does your energy tend to go?",
+      left: "Inward",
+      right: "Outward",
     },
     {
       key: "texture",
-      question: "How comfortable are you expressing yourself?",
-      left: "Confident",
-      right: "Reserved",
+      question: "How readily do you make yourself seen or heard?",
+      left: "Reserved",
+      right: "Expressive",
     },
     {
       key: "spacing",
-      question: "How close do you tend to feel to the people around you?",
+      question: "How do you usually relate to the people around you?",
       left: "Connected",
-      right: "Separated",
+      right: "Independent",
     },
     {
       key: "size",
-      question: "How much presence do you feel you have in a space?",
+      question: "How much space do you naturally allow yourself to take?",
       left: "Subtle",
-      right: "Noticeable",
+      right: "Bold",
     },
   ] as const
 
@@ -840,13 +917,381 @@ function ProjectionView() {
   )
 }
 
+function IntroView({ onStart }: { onStart: () => void }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: "#F5F4F1",
+        fontFamily: '"DM Sans", sans-serif',
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 720,
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+            color: "#B4B3AE",
+            marginBottom: 24,
+          }}
+        >
+          Identity as form
+        </div>
+
+        <h1
+          style={{
+            fontSize: 56,
+            lineHeight: 1.05,
+            fontWeight: 600,
+            color: "#1c1c1c",
+            letterSpacing: "-0.05em",
+            margin: "0 0 28px",
+          }}
+        >
+          What shape does your identity take?
+        </h1>
+
+        <p
+          style={{
+            maxWidth: 560,
+            margin: "0 auto 42px",
+            fontSize: 16,
+            lineHeight: 1.7,
+            color: "#898883",
+          }}
+        >
+          Identity is built from the way we move, connect, express ourselves
+          and occupy space. Answer instinctively. There are no right or wrong
+          answers.
+        </p>
+
+        <button
+          onClick={onStart}
+          style={{
+            padding: "16px 42px",
+            borderRadius: 12,
+            border: "none",
+            background: "#1c1c1c",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: "0.14em",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          BEGIN
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RevealView({
+  settings,
+  onContinue,
+}: {
+  settings: Settings
+  onContinue: () => void
+}) {
+  const [showText, setShowText] = useState(false)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowText(true)
+    }, 1200)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        position: "relative",
+        background: "#000",
+        overflow: "hidden",
+        fontFamily: '"DM Sans", sans-serif',
+      }}
+    >
+      <ShapeRenderer
+        settings={settings}
+        background="#000000"
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "center",
+          padding: "0 24px 52px",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            opacity: showText ? 1 : 0,
+            transform: showText
+              ? "translateY(0)"
+              : "translateY(12px)",
+            transition:
+              "opacity 0.8s ease, transform 0.8s ease",
+            pointerEvents: showText ? "auto" : "none",
+          }}
+        >
+          <div
+            style={{
+              color: "#fff",
+              fontSize: 30,
+              fontWeight: 500,
+              letterSpacing: "-0.03em",
+              marginBottom: 10,
+            }}
+          >
+            Your answers have taken form.
+          </div>
+
+          <div
+            style={{
+              color: "rgba(255,255,255,0.58)",
+              fontSize: 14,
+              marginBottom: 26,
+            }}
+          >
+            This is one interpretation of you.
+          </div>
+
+          <button
+            onClick={onContinue}
+            style={{
+              padding: "14px 30px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.35)",
+              background: "rgba(0,0,0,0.35)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.13em",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            MAKE IT YOURS
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CollectiveView({
+  identities,
+  onRestart,
+  onSelectIdentity,
+  onClear,
+}: {
+  identities: Settings[]
+  onRestart: () => void
+  onSelectIdentity: (settings: Settings) => void
+  onClear: () => void
+}) {
+  const [showText, setShowText] =
+    useState(true)
+
+  useEffect(() => {
+    const timer =
+      window.setTimeout(() => {
+        setShowText(false)
+      }, 5000)
+
+    return () =>
+      window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.shiftKey &&
+        event.key.toLowerCase() === "c"
+      ) {
+        onClear()
+      }
+    }
+  
+    window.addEventListener("keydown", handleKeyDown)
+  
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [onClear])
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: "#000",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily:
+          '"DM Sans", sans-serif',
+      }}
+    >
+      <CollectiveRenderer
+        identities={identities}
+        background="#000000"
+        onSelectIdentity={onSelectIdentity}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          pointerEvents: "none",
+
+          opacity:
+            showText ? 1 : 0,
+
+          transition:
+            "opacity 1s ease",
+
+          background:
+            showText
+              ? "rgba(0,0,0,0.18)"
+              : "transparent",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            maxWidth: 600,
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              color: "#fff",
+              fontSize: 40,
+              fontWeight: 500,
+              letterSpacing:
+                "-0.04em",
+              marginBottom: 14,
+            }}
+          >
+            You are one form
+            among many.
+          </div>
+
+          <div
+            style={{
+              color:
+                "rgba(255,255,255,0.62)",
+              fontSize: 15,
+              lineHeight: 1.6,
+            }}
+          >
+            Every identity is
+            different. Together,
+            they create a shared
+            landscape.
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          left: 28,
+          bottom: 28,
+          color: "rgba(255,255,255,0.55)",
+          fontSize: 11,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          pointerEvents: "none",
+        }}
+      >
+        Click an identity to project it
+      </div>
+
+      <button
+        onClick={onRestart}
+        style={{
+          position: "absolute",
+          right: 28,
+          bottom: 28,
+
+          padding:
+            "13px 22px",
+
+          borderRadius: 12,
+
+          border:
+            "1px solid rgba(255,255,255,0.28)",
+
+          background:
+            "rgba(0,0,0,0.35)",
+
+          color: "#fff",
+
+          fontFamily: "inherit",
+
+          fontSize: 11,
+
+          fontWeight: 600,
+
+          letterSpacing:
+            "0.12em",
+
+          cursor: "pointer",
+        }}
+      >
+        CREATE ANOTHER
+      </button>
+    </div>
+  )
+}
+
 // ─── Main view (existing UI) ───────────────────────────────────────────────────
 
 function MainView() {
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [finished,  setFinished] = useState(false)
   const [webglError, setWebglError] = useState(false)
-  const [stage, setStage] = useState<"questions" | "editor">("questions")
+  const [stage, setStage] =
+  useState<
+    | "intro"
+    | "questions"
+    | "reveal"
+    | "editor"
+    | "collective"
+  >("intro")
+  const [identities, setIdentities] =
+  useState<Settings[]>(
+    loadIdentities
+  )
 
 // Every time settings change, save locally AND broadcast through Vite's WebSocket.
 useEffect(() => {
@@ -866,12 +1311,52 @@ useEffect(() => {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
+  if (stage === "intro") {
+    return (
+      <IntroView
+        onStart={() => setStage("questions")}
+      />
+    )
+  }
+  
   if (stage === "questions") {
     return (
       <Questionnaire
-        onComplete={(generatedSettings) => {
+        onComplete={(generatedSettings: Settings) => {
           setSettings(generatedSettings)
-          setStage("editor")
+          setStage("reveal")
+        }}
+      />
+    )
+  }
+  
+  if (stage === "reveal") {
+    return (
+      <RevealView
+        settings={settings}
+        onContinue={() => setStage("editor")}
+      />
+    )
+  }
+
+  if (stage === "collective") {
+    return (
+      <CollectiveView
+        identities={identities}
+  
+        onSelectIdentity={(selectedSettings) => {
+          // This is what changes the shape shown in /projection
+          setSettings(selectedSettings)
+        }}
+  
+        onRestart={() => {
+          setStage("intro")
+        }}
+  
+        onClear={() => {
+          // ONLY clear the collective gallery
+          localStorage.removeItem(IDENTITIES_KEY)
+          setIdentities([])
         }}
       />
     )
@@ -910,8 +1395,39 @@ useEffect(() => {
       <div style={{ width: 308, background: "#fff", borderLeft: "1px solid #ECEAE5", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         <div style={{ padding: "30px 28px 22px", borderBottom: "1px solid #F2F1ED" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#B4B3AE", marginBottom: 7 }}>Personality</div>
-          <div style={{ fontSize: 18, fontWeight: 600, color: "#1c1c1c", letterSpacing: "-0.03em" }}>How do you perceive yourself?</div>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "#B4B3AE",
+            marginBottom: 7,
+          }}
+        >
+          Your interpretation
+        </div>
+
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "#1c1c1c",
+            letterSpacing: "-0.03em",
+          }}
+        >
+          Make it yours.
+        </div>
+
+        <div
+          style={{
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "#A09F9A",
+            marginTop: 9,
+          }}
+        >
+          Adjust the form until it feels closer to how you see yourself.
+        </div>
         </div>
 
         <div
@@ -934,15 +1450,15 @@ useEffect(() => {
           ))}
 
           <ShapeSlider
-              label="Quantity"
-              left="1"
-              right="6"
-              value={settings.quantity}
-              min={2}
-              max={6}
-              step={1}
-              onChange={(v) => update("quantity", v)}
-            />
+            label="Parts"
+            left="Focused"
+            right="Layered"
+            value={settings.quantity}
+            min={2}
+            max={6}
+            step={1}
+            onChange={(v) => update("quantity", v)}
+          />
 
           <ColorWheelPicker
             value={settings.color}
@@ -963,7 +1479,15 @@ useEffect(() => {
         >
           <button
             className="btn-finish"
-            onClick={() => setFinished(true)}
+            onClick={() => {
+              const next = saveIdentity(settings)
+
+              setIdentities(next)
+
+              // "settings" already represents the latest created shape,
+              // so /projection keeps showing this one.
+              setStage("collective")
+            }}
             style={{
               width: "100%",
               padding: "14px 0",
@@ -976,10 +1500,9 @@ useEffect(() => {
               color: "#ffffff",
               cursor: "pointer",
               fontFamily: "inherit",
-              transition: "background 0.14s",
             }}
           >
-            FINISH
+            ADD MY SHAPE
           </button>
         </div>
       </div>
@@ -1000,6 +1523,8 @@ useEffect(() => {
   )
 }
 
+
+
 // ─── App (route dispatcher) ────────────────────────────────────────────────────
 
 export default function App() {
@@ -1007,5 +1532,7 @@ export default function App() {
     window.location.pathname === "/projection" ||
     new URLSearchParams(window.location.search).get("projection") === "true"
 
-  return isProjection ? <ProjectionView /> : <MainView />
+  return isProjection
+    ? <ProjectionView />
+    : <MainView />
 }
